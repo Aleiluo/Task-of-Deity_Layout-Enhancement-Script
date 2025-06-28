@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         欲神的任务网页布局调整
 // @namespace    http://tampermonkey.net/
-// @version      1.0
-// @description  调整页面布局，包括故事容器位置、关闭下拉菜单、立绘位置和缩放控制
+// @version      2.0
+// @description  调整页面布局，包括故事容器位置、关闭下拉菜单、设置滑条默认值和元素位置调整
 // @author       Aleiluo
 // @include      /^https:\/\/taskofdeity\..+\..+\/.*$/
 // @license MIT
@@ -14,21 +14,17 @@
     // 配置变量 - 方便修改
     const CONFIG = {
         // 故事容器配置
-        STORY_LEFT_MARGIN_PERCENT: 15,     // 故事容器左边距（页面宽度百分比）
+        STORY_LEFT_MARGIN_PERCENT: 30,     // 故事容器左边距（页面宽度百分比）
         STORY_WIDTH_PERCENT: 60,           // 故事容器宽度（页面宽度百分比）
 
-        // 立绘配置
-        CHAR_RIGHT_MARGIN_PERCENT: 10,     // 立绘右边距（页面宽度百分比）
-        CHARACTER_SCALE_DEFAULT: 1.4,      // 立绘默认缩放比例
+        // 滑条默认值配置
+        CHAR_SIZE_DEFAULT: 500,            // 立绘大小默认值
+        FONT_SIZE_DEFAULT: 120,            // 文字大小默认值
+        FONT_WEIGHT_DEFAULT: 350,          // 文字粗细默认值
 
-        // 缩放控制器配置
-        SLIDER_POSITION_PERCENT: 10,       // 滑块高度位置（从顶部算起的百分比）
-        SLIDER_RIGHT_MARGIN: 0.5,          // 滑块距离右侧的距离（百分比）
-        SLIDER_LENGTH: 100,                // 滑条的长度（像素）
-        LABEL_MARGIN_RIGHT: -10,           // 立绘缩放文字距离滑条的距离（像素）
-        SLIDER_STEP: 0.05,                 // 滑块步长
-        SLIDER_MIN: 0.5,                   // 最小缩放值
-        SLIDER_MAX: 2,                     // 最大缩放值
+        // 元素右移配置
+        BTN_CHAR_WIN_RIGHT_OFFSET: 110,    // btn_char_win元素向右移动的距离（像素）
+        STAT_MAIN_RIGHT_OFFSET: 200,       // stat_main元素向右移动的距离（像素）
     };
 
     // 等待元素出现的辅助函数
@@ -68,157 +64,168 @@
         });
     }
 
-    // 2. 关闭所有dropdown（排除btn_char）
+    // 2. 关闭所有dropdown（排除btn_char、stat_menu_details和insert_map内的dropdown）
     function closeDropdowns() {
-        const selectors = [
-            'details.dropdown.prop_main.w-10.h-10[open]',
-            'details#stat_menu_details.dropdown.w-10.h-10.relative[open]',
-            'details#btn_equip.dropdown.equip_main.w-10.h-10[open]'
-        ];
+        const excludeIds = ['btn_char', 'stat_menu_details'];
 
-        // 处理通用的dropdown，但排除btn_char
-        const genericDropdowns = document.querySelectorAll('details.dropdown.w-10.h-10[open]');
-        genericDropdowns.forEach(element => {
-            if (element.id !== 'btn_char') {
-                element.removeAttribute('open');
-                console.log('Closed generic dropdown (excluding btn_char)');
+        // 查找所有打开的dropdown并关闭（除了排除列表中的）
+        const allOpenDropdowns = document.querySelectorAll('details.dropdown[open]');
+        allOpenDropdowns.forEach(element => {
+            // 检查是否在排除的id列表中
+            if (excludeIds.includes(element.id)) {
+                return;
+            }
+
+            // 检查是否是insert_map内的dropdown
+            if (element.closest('#insert_map')) {
+                return;
+            }
+
+            element.removeAttribute('open');
+            console.log(`Closed dropdown: ${element.id || element.className}`);
+        });
+    }
+
+    // 3. 设置滑条默认值
+    function setSliderDefaults() {
+        // 设置立绘大小
+        waitForElement('#slider-charSize', (slider) => {
+            slider.value = CONFIG.CHAR_SIZE_DEFAULT;
+            // 触发change事件以应用设置
+            slider.dispatchEvent(new Event('input', { bubbles: true }));
+            slider.dispatchEvent(new Event('change', { bubbles: true }));
+            console.log(`Character size set to: ${CONFIG.CHAR_SIZE_DEFAULT}`);
+
+            // 更新显示值
+            const valueDisplay = document.querySelector('#slider-charSize-value');
+            if (valueDisplay) {
+                valueDisplay.textContent = CONFIG.CHAR_SIZE_DEFAULT;
             }
         });
 
-        selectors.forEach(selector => {
-            const elements = document.querySelectorAll(selector);
-            elements.forEach(element => {
-                element.removeAttribute('open');
-                console.log(`Closed dropdown: ${selector}`);
+        // 设置文字大小
+        waitForElement('#slider-fontsize', (slider) => {
+            slider.value = CONFIG.FONT_SIZE_DEFAULT;
+            // 触发change事件以应用设置
+            slider.dispatchEvent(new Event('input', { bubbles: true }));
+            slider.dispatchEvent(new Event('change', { bubbles: true }));
+            console.log(`Font size set to: ${CONFIG.FONT_SIZE_DEFAULT}`);
+
+            // 更新显示值
+            const valueDisplay = document.querySelector('#slider-fontsize-value');
+            if (valueDisplay) {
+                valueDisplay.textContent = CONFIG.FONT_SIZE_DEFAULT;
+            }
+        });
+
+        // 设置文字粗细
+        waitForElement('#slider-fontweight', (slider) => {
+            slider.value = CONFIG.FONT_WEIGHT_DEFAULT;
+            // 触发change事件以应用设置
+            slider.dispatchEvent(new Event('input', { bubbles: true }));
+            slider.dispatchEvent(new Event('change', { bubbles: true }));
+            console.log(`Font weight set to: ${CONFIG.FONT_WEIGHT_DEFAULT}`);
+
+            // 更新显示值
+            const valueDisplay = document.querySelector('#slider-fontweight-value');
+            if (valueDisplay) {
+                valueDisplay.textContent = CONFIG.FONT_WEIGHT_DEFAULT;
+            }
+        });
+    }
+
+    // 4. 调整指定元素的位置（向右平移）
+    function adjustElementsPosition() {
+        // 调整btn_char_win元素
+        waitForElement('#btn_char_win', (element) => {
+            // 获取当前的right值
+            const computedStyle = getComputedStyle(element);
+            let currentRight = computedStyle.right;
+
+            // 如果right值是百分比或其他单位，需要转换
+            if (currentRight.includes('%')) {
+                // 保持原有的百分比设置，但添加额外的像素偏移
+                element.style.right = `calc(${currentRight} + ${CONFIG.BTN_CHAR_WIN_RIGHT_OFFSET}px)`;
+            } else {
+                // 如果是像素值，直接减去偏移量
+                const currentRightPx = parseInt(currentRight) || 0;
+                element.style.right = `${currentRightPx - CONFIG.BTN_CHAR_WIN_RIGHT_OFFSET}px`;
+            }
+
+            console.log(`btn_char_win position adjusted by ${CONFIG.BTN_CHAR_WIN_RIGHT_OFFSET}px to the right`);
+        });
+
+        // 调整stat_main元素
+        waitForElement('#stat_main', (element) => {
+            // 获取当前的right值
+            const computedStyle = getComputedStyle(element);
+            let currentRight = computedStyle.right;
+
+            // 如果right值是CSS变量或其他复杂值
+            if (currentRight.includes('var(') || currentRight.includes('calc(')) {
+                // 包装在calc中添加偏移
+                element.style.right = `calc(${currentRight} + ${CONFIG.STAT_MAIN_RIGHT_OFFSET}px)`;
+            } else if (currentRight.includes('%')) {
+                // 百分比值处理
+                element.style.right = `calc(${currentRight} + ${CONFIG.STAT_MAIN_RIGHT_OFFSET}px)`;
+            } else {
+                // 像素值处理
+                const currentRightPx = parseInt(currentRight) || 0;
+                element.style.right = `${currentRightPx - CONFIG.STAT_MAIN_RIGHT_OFFSET}px`;
+            }
+
+            console.log(`stat_main position adjusted by ${CONFIG.STAT_MAIN_RIGHT_OFFSET}px to the right`);
+        });
+    }
+
+    // 5. 监听读档操作
+    function setupLoadGameListener() {
+        // 使用事件委托监听读档按钮点击
+        document.addEventListener('click', function(event) {
+            // 检查点击的元素是否是读档按钮
+            if (event.target && event.target.classList.contains('loadSlot')) {
+                console.log('检测到读档操作，准备关闭dropdown');
+
+                // 延迟执行关闭操作，给读档操作一些时间完成
+                setTimeout(() => {
+                    closeDropdowns();
+                    console.log('读档后已关闭dropdown');
+                }, 1000);
+            }
+        });
+
+        // 额外的监听方式：监听读档容器的变化
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                // 如果读档容器从显示变为隐藏，说明可能进行了读档操作
+                if (mutation.type === 'attributes' &&
+                    mutation.attributeName === 'style' &&
+                    mutation.target.id === 'loadContainer') {
+
+                    const loadContainer = mutation.target;
+                    // 检查是否从显示状态变为隐藏状态
+                    if (loadContainer.style.display === 'none' ||
+                        !loadContainer.style.display &&
+                        getComputedStyle(loadContainer).display === 'none') {
+
+                        console.log('读档界面关闭，可能进行了读档操作');
+                        setTimeout(() => {
+                            closeDropdowns();
+                            console.log('读档界面关闭后已关闭dropdown');
+                        }, 500);
+                    }
+                }
             });
         });
-    }
 
-    // 3. 创建立绘缩放控制器
-    function createScaleController() {
-        // 检查是否已存在控制器
-        if (document.querySelector('#character-scale-controller')) {
-            return;
-        }
-
-        // 创建控制器容器
-        const controller = document.createElement('div');
-        controller.id = 'character-scale-controller';
-        controller.style.cssText = `
-            position: fixed;
-            right: ${CONFIG.SLIDER_RIGHT_MARGIN}%;
-            top: ${CONFIG.SLIDER_POSITION_PERCENT}%;
-            z-index: 1000;
-            display: flex;
-            align-items: center;
-        `;
-
-        // 创建标签
-        const label = document.createElement('div');
-        label.textContent = '立绘缩放';
-        label.style.cssText = `
-            writing-mode: vertical-lr;
-            text-orientation: mixed;
-            color: #333;
-            font-weight: bold;
-            font-size: 14px;
-            margin-right: ${CONFIG.LABEL_MARGIN_RIGHT}px;
-            min-height: ${CONFIG.SLIDER_LENGTH}px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        `;
-
-        // 创建滑块容器
-        const sliderContainer = document.createElement('div');
-        sliderContainer.style.cssText = `
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            height: ${CONFIG.SLIDER_LENGTH}px;
-        `;
-
-        // 创建滑块
-        const slider = document.createElement('input');
-        slider.type = 'range';
-        slider.min = CONFIG.SLIDER_MIN;
-        slider.max = CONFIG.SLIDER_MAX;
-        slider.step = CONFIG.SLIDER_STEP;
-        slider.value = CONFIG.CHARACTER_SCALE_DEFAULT;
-        slider.style.cssText = `
-            writing-mode: bt-lr;
-            -webkit-appearance: slider-vertical;
-            width: 20px;
-            height: ${CONFIG.SLIDER_LENGTH * 0.8}px;
-            background: linear-gradient(to top, #ddd, #bbb);
-            outline: none;
-            border: 1px solid #333;
-            border-radius: 10px;
-        `;
-
-        // 创建数值显示
-        const valueDisplay = document.createElement('div');
-        valueDisplay.textContent = `${CONFIG.CHARACTER_SCALE_DEFAULT.toFixed(2)}`;
-        valueDisplay.style.cssText = `
-                color: #333;
-                font-size: 12px;
-                font-weight: bold;
-                margin-top: 5px;
-                min-width: 40px;
-                text-align: center;
-            `;
-
-        // 滑块事件监听
-        slider.addEventListener('input', function() {
-            const scale = parseFloat(this.value);
-            applyCharacterScale(scale);
-            valueDisplay.textContent = scale.toFixed(2);
+        // 等待读档容器出现后开始监听
+        waitForElement('#loadContainer', (loadContainer) => {
+            observer.observe(loadContainer, {
+                attributes: true,
+                attributeFilter: ['style']
+            });
+            console.log('读档监听器已设置');
         });
-
-        // 组装控制器
-        sliderContainer.appendChild(slider);
-        sliderContainer.appendChild(valueDisplay);
-        controller.appendChild(label);
-        controller.appendChild(sliderContainer);
-
-        // 添加到页面
-        document.body.appendChild(controller);
-
-        console.log('Scale controller created');
-    }
-
-    // 4. 调整立绘位置和缩放
-    function adjustCharacterDisplay() {
-        waitForElement('#btn_char_win', (charWin) => {
-            // 设置立绘容器位置 - 右侧竖直居中
-            charWin.style.position = 'fixed';
-            charWin.style.right = `${CONFIG.CHAR_RIGHT_MARGIN_PERCENT}%`;
-            charWin.style.top = '50%';
-            charWin.style.transform = 'translateY(-50%)';
-            charWin.style.zIndex = '100';
-
-            console.log('Character display positioned');
-
-            // 创建缩放控制器
-            createScaleController();
-
-            // 应用初始缩放
-            applyCharacterScale(CONFIG.CHARACTER_SCALE_DEFAULT);
-        });
-    }
-
-    // 应用立绘缩放
-    function applyCharacterScale(scale) {
-        const charWin = document.querySelector('#btn_char_win');
-        const charDiv = document.querySelector('#char');
-
-        if (charWin && charDiv) {
-            // 对整个立绘容器应用缩放
-            charWin.style.transform = `translateY(-50%) scale(${scale})`;
-            charWin.style.transformOrigin = 'center';
-
-            console.log(`Applied scale: ${scale}`);
-        }
     }
 
     // 主初始化函数
@@ -231,35 +238,55 @@
                 setTimeout(() => {
                     adjustStoryContainer();
                     closeDropdowns();
-                    adjustCharacterDisplay();
+                    setSliderDefaults();      // 设置滑条默认值
+                    adjustElementsPosition(); // 调整元素位置
+                    setupLoadGameListener();
                 }, 500);
             });
         } else {
             setTimeout(() => {
                 adjustStoryContainer();
                 closeDropdowns();
-                adjustCharacterDisplay();
+                setSliderDefaults();      // 设置滑条默认值
+                adjustElementsPosition(); // 调整元素位置
+                setupLoadGameListener();
             }, 500);
         }
 
         // 监听页面变化，确保在动态加载内容后也能正常工作
         const observer = new MutationObserver((mutations) => {
-            let shouldReapply = false;
+            let shouldReapplySliders = false;
+            let shouldReapplyPosition = false;
+
             mutations.forEach((mutation) => {
                 if (mutation.addedNodes.length > 0) {
                     mutation.addedNodes.forEach((node) => {
                         if (node.nodeType === 1) { // Element node
-                            if (node.id === 'btn_char_win' || node.querySelector && node.querySelector('#btn_char_win')) {
-                                shouldReapply = true;
+                            // 检查是否需要重新设置滑条
+                            if (node.id && ['slider-charSize', 'slider-fontsize', 'slider-fontweight'].includes(node.id) ||
+                                node.querySelector && ['#slider-charSize', '#slider-fontsize', '#slider-fontweight'].some(sel => node.querySelector(sel))) {
+                                shouldReapplySliders = true;
+                            }
+
+                            // 检查是否需要重新调整位置
+                            if (node.id === 'btn_char_win' || node.id === 'stat_main' ||
+                                node.querySelector && (node.querySelector('#btn_char_win') || node.querySelector('#stat_main'))) {
+                                shouldReapplyPosition = true;
                             }
                         }
                     });
                 }
             });
 
-            if (shouldReapply) {
+            if (shouldReapplySliders) {
                 setTimeout(() => {
-                    adjustCharacterDisplay();
+                    setSliderDefaults();
+                }, 100);
+            }
+
+            if (shouldReapplyPosition) {
+                setTimeout(() => {
+                    adjustElementsPosition();
                 }, 100);
             }
         });
