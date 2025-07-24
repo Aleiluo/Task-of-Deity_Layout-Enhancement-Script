@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         欲神的任务网页布局调整
 // @namespace    http://tampermonkey.net/
-// @version      2.0
-// @description  调整页面布局，包括故事容器位置、关闭下拉菜单、设置滑条默认值和元素位置调整
+// @version      2.1
+// @description  调整页面布局，包括调整文本框左边距，文字大小粗细默认值，立绘大小默认值，立绘右移距离
 // @author       Aleiluo
 // @include      /^https:\/\/taskofdeity\..+\..+\/.*$/
 // @license MIT
